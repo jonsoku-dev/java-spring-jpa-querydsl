@@ -546,6 +546,10 @@ public class QuerydslBasicTest {
         System.out.println("result = " + result);
     }
 
+    /**
+     *  참고: member.age.stringValue() 부분이 중요한데, 문자가 아닌 다른 타입들은 stringValue() 로 문
+     * 자로 변환할 수 있다. 이 방법은 ENUM을 처리할 때도 자주 사용한다.
+     */
     @Test
     public void concat() {
         // {username}_{age}
