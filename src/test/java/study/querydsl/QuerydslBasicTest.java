@@ -14,6 +14,8 @@ import study.querydsl.entity.QTeam;
 import study.querydsl.entity.Team;
 
 import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.PersistenceUnit;
 
 import java.util.List;
 
@@ -26,6 +28,9 @@ import static study.querydsl.entity.QTeam.*;
 public class QuerydslBasicTest {
     @Autowired
     EntityManager em;
+
+    @PersistenceUnit
+    EntityManagerFactory emf;
 
     JPAQueryFactory queryFactory;
 
@@ -259,12 +264,12 @@ public class QuerydslBasicTest {
      * 조인의 기본 문법은 첫 번째 파라미터에 조인 대상을 지정하고, 두 번째 파라미터에 별칭(alias)으로 사용할
      * Q 타입을 지정하면 된다.
      * join(조인 대상, 별칭으로 사용할 Q타입)
-     *
+     * <p>
      * join() , innerJoin() : 내부 조인(inner join)
      * leftJoin() : left 외부 조인(left outer join)
      * rightJoin() : rigth 외부 조인(rigth outer join)
      * JPQL의 on 과 성능 최적화를 위한 fetch 조인 제공 다음 on 절에서 설명
-     *
+     * <p>
      * 팀 A에 소속된 모든 회원
      */
     @Test
@@ -284,7 +289,7 @@ public class QuerydslBasicTest {
     /**
      * 세타 조인(연관관계가 없는 필드로 조인)
      * 회원의 이름이 팀 이름과 같은 회원 조회
-     *
+     * <p>
      * from 절에 여러 엔티티를 선택해서 세타 조인
      * 외부 조인 불가능 다음에 설명할 조인 on을 사용하면 외부 조인 가능
      */
@@ -309,15 +314,15 @@ public class QuerydslBasicTest {
      * 예) 회원과 팀을 조인하면서, 팀 이름이 teamA인 팀만 조인, 회원은 모두 조회
      * JPQL: SELECT m, t FROM Member m LEFT JOIN m.team t on t.name = 'teamA'
      * SQL: SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.TEAM_ID=t.id and t.name='teamA'
-     *
+     * <p>
      * inner join -> on 과 where 결과값이 같다.
      * left join -> on을 사용해야한다.
-     *
+     * <p>
      * t=[Member(id=3, username=member1, age=10), Team(id=1, name=teamA)]
      * t=[Member(id=4, username=member2, age=20), Team(id=1, name=teamA)]
      * t=[Member(id=5, username=member3, age=30), null]
      * t=[Member(id=6, username=member4, age=40), null]
-     *
+     * <p>
      * 참고: on 절을 활용해 조인 대상을 필터링 할 때, 외부조인이 아니라 내부조인(inner join)을 사용하면,
      * where 절에서 필터링 하는 것과 기능이 동일하다. 따라서 on 절을 활용한 조인 대상 필터링을 사용할 때,
      * 내부조인 이면 익숙한 where 절로 해결하고, 정말 외부조인이 필요한 경우에만 이 기능을 사용하자.
@@ -341,6 +346,10 @@ public class QuerydslBasicTest {
      * 예) 회원의 이름과 팀의 이름이 같은 대상 외부 조인
      * JPQL: SELECT m, t FROM Member m LEFT JOIN Team t on m.username = t.name
      * SQL: SELECT m.*, t.* FROM Member m LEFT JOIN Team t ON m.username = t.name
+     * <p>
+     * 주의! 문법을 잘 봐야 한다. leftJoin() 부분에 일반 조인과 다르게 엔티티 하나만 들어간다.
+     * 일반조인: leftJoin(member.team, team)
+     * on조인: from(member).leftJoin(team).on(xxx)
      */
     @Test
     public void join_on_no_relation() throws Exception {
@@ -354,5 +363,43 @@ public class QuerydslBasicTest {
         for (Tuple tuple : result) {
             System.out.println("t=" + tuple);
         }
+    }
+
+    /**
+     * 조인 - 페치 조인
+     * 페치 조인은 SQL에서 제공하는 기능은 아니다. SQL조인을 활용해서 연관된 엔티티를 SQL 한번에 조회하
+     * 는 기능이다. 주로 성능 최적화에 사용하는 방법이다.
+     * 페치 조인 미적용
+     * 지연로딩으로 Member, Team SQL 쿼리 각각 실행
+     */
+    @Test
+    public void fetchJoinNo() throws Exception {
+        em.flush();
+        em.clear();
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .where(member.username.eq("member1"))
+                .fetchOne();
+        boolean loaded =
+                emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 미적용").isFalse();
+    }
+
+    /**
+     * 페치 조인 적용
+     * 즉시로딩으로 Member, Team SQL 쿼리 조인으로 한번에 조회
+     */
+    @Test
+    public void fetchJoinUse() throws Exception {
+        em.flush();
+        em.clear();
+        Member findMember = queryFactory
+                .selectFrom(member)
+                .join(member.team, team).fetchJoin()
+                .where(member.username.eq("member1"))
+                .fetchOne();
+        boolean loaded =
+                emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
+        assertThat(loaded).as("페치 조인 적용").isTrue();
     }
 }
