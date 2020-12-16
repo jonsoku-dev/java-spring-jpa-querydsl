@@ -23,9 +23,12 @@ class QuerydslApplicationTest {
         em.persist(hello);
 
         JPAQueryFactory query = new JPAQueryFactory(em);
+//        QHello qHello = new QHello("h");
         QHello qHello = QHello.hello;
 
-        Hello result = query.selectFrom(qHello).fetchOne();
+        Hello result = query
+                .selectFrom(qHello)
+                .fetchOne();
 
         Assertions.assertThat(result).isEqualTo(hello);
         // lombok 동작 확인 (hello.getId()
