@@ -2,6 +2,8 @@ package study.querydsl;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -388,6 +390,10 @@ public class QuerydslBasicTest {
     /**
      * 페치 조인 적용
      * 즉시로딩으로 Member, Team SQL 쿼리 조인으로 한번에 조회
+     * <p>
+     * 사용방법
+     * join(), leftJoin() 등 조인 기능 뒤에 fetchJoin() 이라고 추가하면 된다.
+     * > 참고: 페치 조인에 대한 자세한 내용은 JPA 기본편이나, 활용2편을 참고하자
      */
     @Test
     public void fetchJoinUse() throws Exception {
@@ -401,5 +407,129 @@ public class QuerydslBasicTest {
         boolean loaded =
                 emf.getPersistenceUnitUtil().isLoaded(findMember.getTeam());
         assertThat(loaded).as("페치 조인 적용").isTrue();
+    }
+
+    /**
+     * 서브 쿼리
+     * com.querydsl.jpa.JPAExpressions 사용
+     * <p>
+     * 나이가 가장 많은 회원 조회
+     */
+    @Test
+    public void subQuery() throws Exception {
+        QMember memberSub = new QMember("memberSub"); // 같은 테이블을 사용할때에는 별칭을 다르게 사용해야하므로..
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.eq(
+                        JPAExpressions
+                                .select(memberSub.age.max())
+                                .from(memberSub)
+                ))
+                .fetch();
+        assertThat(result).extracting("age")
+                .containsExactly(40);
+    }
+
+    /**
+     * 서브 쿼리 goe 사용
+     * 나이가 평균 나이 이상인 회원
+     * goe: 크거나 같다 (greater or equal)
+     */
+    @Test
+    public void subQueryGoe() throws Exception {
+        QMember memberSub = new QMember("memberSub");
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.goe(
+                        JPAExpressions
+                                .select(memberSub.age.avg())
+                                .from(memberSub)
+                ))
+                .fetch();
+        assertThat(result).extracting("age")
+                .containsExactly(30, 40);
+    }
+
+    /**
+     * 서브쿼리 여러 건 처리, in 사용
+     */
+    @Test
+    public void subQueryIn() throws Exception {
+        QMember memberSub = new QMember("memberSub");
+        List<Member> result = queryFactory
+                .selectFrom(member)
+                .where(member.age.in(
+                        JPAExpressions
+                                .select(memberSub.age)
+                                .from(memberSub)
+                                .where(memberSub.age.gt(10))
+                ))
+                .fetch();
+        assertThat(result).extracting("age")
+                .containsExactly(20, 30, 40);
+    }
+
+    /**
+     * from 절의 서브쿼리 한계
+     * JPA JPQL 서브쿼리의 한계점으로 from 절의 서브쿼리(인라인 뷰)는 지원하지 않는다. 당연히 Querydsl
+     * 도 지원하지 않는다. 하이버네이트 구현체를 사용하면 select 절의 서브쿼리는 지원한다. Querydsl도 하
+     * 이버네이트 구현체를 사용하면 select 절의 서브쿼리를 지원한다.
+     * from 절의 서브쿼리 해결방안
+     * 1. 서브쿼리를 join으로 변경한다. (가능한 상황도 있고, 불가능한 상황도 있다.)
+     * 2. 애플리케이션에서 쿼리를 2번 분리해서 실행한다.
+     * 3. nativeSQL을 사용한다.
+     */
+    @Test
+    public void selectSubQuery() {
+        QMember memberSub = new QMember("memberSub");
+        List<Tuple> fetch = queryFactory
+                .select(member.username,
+                        JPAExpressions
+                                .select(memberSub.age.avg())
+                                .from(memberSub)
+                ).from(member)
+                .fetch();
+        for (Tuple tuple : fetch) {
+            System.out.println("username = " + tuple.get(member.username));
+            System.out.println("age = " +
+                    tuple.get(JPAExpressions.select(memberSub.age.avg())
+                            .from(memberSub)));
+        }
+    }
+
+    /**
+     * Case 문
+     * select, 조건절(where), order by에서 사용 가능
+     */
+    @Test
+    public void basicCase() {
+        // 간단
+        List<String> result = queryFactory
+                .select(member.age
+                        .when(10).then("열살")
+                        .when(20).then("스무살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @Test
+    public void complexCase() {
+        // 복잡
+        List<String> result = queryFactory
+                .select(new CaseBuilder()
+                        .when(member.age.between(0, 20)).then("0~20살")
+                        .when(member.age.between(21, 30)).then("21~30살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        for (String s : result) {
+            System.out.println("s = " + s);
+        }
     }
 }
