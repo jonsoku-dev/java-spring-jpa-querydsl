@@ -663,7 +663,7 @@ public class QuerydslBasicTest {
 
     /**
      * 컴파일오류가 나서 조기에 잡을 수 있다.
-     *
+     * <p>
      * 단점 : MemberDto 가 querydsl 에 의존성을 가지고있다. (Q 파일을 생성해야하기 때문에)
      */
     @Test
@@ -686,6 +686,7 @@ public class QuerydslBasicTest {
         List<Member> result = searchMember1(usernameParam, ageParam);
         assertThat(result.size()).isEqualTo(1);
     }
+
     private List<Member> searchMember1(String usernameCond, Integer ageCond) {
         BooleanBuilder builder = new BooleanBuilder();
         if (usernameCond != null) {
@@ -713,15 +714,18 @@ public class QuerydslBasicTest {
         List<Member> result = searchMember2(usernameParam, ageParam);
         assertThat(result.size()).isEqualTo(1);
     }
+
     private List<Member> searchMember2(String usernameCond, Integer ageCond) {
         return queryFactory
                 .selectFrom(member)
                 .where(usernameEq(usernameCond), ageEq(ageCond))
                 .fetch();
     }
+
     private BooleanExpression usernameEq(String usernameCond) {
         return usernameCond != null ? member.username.eq(usernameCond) : null;
     }
+
     private BooleanExpression ageEq(Integer ageCond) {
         return ageCond != null ? member.age.eq(ageCond) : null;
     }
@@ -733,5 +737,47 @@ public class QuerydslBasicTest {
         return usernameEq(usernameCond).and(ageEq(ageCond));
     }
 
+    /**
+     * 벌크
+     * > 주의: JPQL 배치와 마찬가지로, 영속성 컨텍스트에 있는 엔티티를 무시하고 실행되기 때문에 배치 쿼리를
+     * 실행하고 나면 영속성 컨텍스트를 초기화 하는 것이 안전하다.
+     */
+    @Test
+    public void bulkUpdate() {
+        // member1 = 10 -> 비회원
+        // member2 = 20 -> 비회원
+        // member3 = 30 -> 유지
+        // member4 = 40 -> 유지
 
+        /**
+         * 쿼리 한번으로 대량 데이터 수정
+         */
+        long count = queryFactory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(28))
+                .execute();
+    }
+
+    @Test
+    public void bulkAdd() {
+        /**
+         * 기존 숫자에 1 더하기 * multiply (곱하기)
+         */
+        long count2 = queryFactory
+                .update(member)
+                .set(member.age, member.age.add(1))
+                .execute();
+    }
+
+    @Test
+    public void BulkDelete() {
+        /**
+         * 쿼리 한번으로 대량 데이터 삭제
+         */
+        long count3 = queryFactory
+                .delete(member)
+                .where(member.age.gt(18))
+                .execute();
+    }
 }
