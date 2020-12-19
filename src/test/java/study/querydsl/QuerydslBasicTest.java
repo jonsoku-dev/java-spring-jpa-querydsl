@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.QMemberDto;
 import study.querydsl.dto.UserDto;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
@@ -641,6 +642,8 @@ public class QuerydslBasicTest {
         }
     }
 
+
+    // constructor는 런타임오류가난다. (컴파일에선 문제없음)
     @Test
     public void findUserDtoByConstructor() {
         List<UserDto> result = queryFactory
@@ -654,5 +657,23 @@ public class QuerydslBasicTest {
         for (UserDto userDto : result) {
             System.out.println("userDto = " + userDto);
         }
+    }
+
+    /**
+     * 컴파일오류가 나서 조기에 잡을 수 있다.
+     *
+     * 단점 : MemberDto 가 querydsl 에 의존성을 가지고있다. (Q 파일을 생성해야하기 때문에)
+     */
+    @Test
+    public void findDtoByQueryProjection() {
+        List<MemberDto> result = queryFactory
+                .select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        for (MemberDto memberDto : result) {
+            System.out.println("memberDto = " + memberDto);
+        }
+
     }
 }
